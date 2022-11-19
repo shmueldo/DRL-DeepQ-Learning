@@ -1,4 +1,8 @@
 from matplotlib import pyplot as plt
+import tensorflow as tf
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense
+from collections import deque
 import numpy as np
 import gym
 
@@ -15,10 +19,10 @@ class QLearning(object):
         self.discount_factor = discount_factor
         self.epsilon = epsilon
         self.decaying_rate = decaying_rate
+        self.dim = (self.environment.state_space.n, self.environment.action_space.n)
 
     def initialize_q(self):
-        dim = (self.environment.state_space.n, self.environment.action_space.n)
-        return np.zeros(dim)
+        return np.zeros(self.dim)
 
     def generate_lookup_table(self, episode):
         fig, ax = plt.subplots() 
@@ -60,3 +64,39 @@ class QLearning(object):
         err = self.q_values[current_state, current_action] - q
         self.q_values[current_state, current_action] = q
         return err
+
+
+class ThreeLayersModel(tf.keras.Model):
+    
+  def __init__(self, input_dim, output_dim):
+    super().__init__()
+    self.input_layer    = Dense(32, input_shape=input_dim, activation='relu')
+    self.hidden         = Dense(16, activation='relu')
+    self.output_layer   = Dense(output_dim, activation='linear')
+    self.dropout        = tf.keras.layers.Dropout(0.5)
+
+  def call(self, inputs, training=False):
+    x = self.dense1(inputs)
+    if training:
+      x = self.dropout(x, training=training)
+    return self.dense2(x)
+
+class DeepQLearning(QLearning):
+    def __init__(self, environment, learning_rate:float, discount_factor:float,
+                 decaying_rate:float, epsilon:float, model_type:tf.keras.Model):
+        super().__init__(environment, learning_rate, discount_factor,
+                         decaying_rate, epsilon)
+        
+    def model_init(self, model_type, criterion, optimizer, learning_rate):
+        model = model_type(self.dim[0], self.dim[1])
+        model.compile(loss= criterion, optimizer=optimizer(learning_rate), metrics=['mse'])
+        return model
+    
+    def epsilon_greedy_action(self, current_state):
+        odd = np.random.choice(2, 1, p=[self.epsilon, 1 - self.epsilon])
+        if odd == 1:
+            return np.argmax(self.q_values[current_state, :])
+        else:
+            return self.environment.action_space.sample()
+    
+    
