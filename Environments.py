@@ -2,9 +2,14 @@ import gym
 
 SEED = 42
 class FrozenLakeGame(object):
-    def __init__(self):
+    def __init__(self, mode="Stochastic"):
         # create the environment
-        self.env = gym.make('FrozenLake-v1', render_mode="rgb_array")
+        if mode.startswith("Stochastic"):
+            is_slippery=True
+        elif mode.startswith("Deterministic"):
+            is_slippery=False
+
+        self.env = gym.make('FrozenLake-v1', render_mode="rgb_array", is_slippery=is_slippery)
         
         # define actions parameters
         self.action_space = self.env.action_space
