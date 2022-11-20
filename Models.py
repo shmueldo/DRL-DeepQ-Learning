@@ -1,3 +1,4 @@
+import numpy as np
 import tensorflow as tf
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense
@@ -29,3 +30,10 @@ class FiveLayersModel(tf.keras.Model):
         x = self.hidden_2(x)
         x = self.hidden_3(x)
         return self.output_layer(x)
+    
+if __name__ == "__main__":
+    model   = ThreeLayersModel((4, ),2)
+    input = np.array([[1, 0, 0, 0]])
+    print(input.shape)
+    x = model(input)
+    print(x)

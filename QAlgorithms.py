@@ -6,6 +6,7 @@ from collections import deque
 import numpy as np
 import gym
 from Models import *
+from Environments import *
 
 SEED = 42
 np.random.seed(SEED)
@@ -15,12 +16,15 @@ class QLearning(object):
                  discount_factor:float, decaying_rate:float,
                  epsilon:float):
         self.environment = environment
-        self.q_values = self.initialize_q()
         self.q_learning_rate = q_learning_rate
         self.discount_factor = discount_factor
         self.epsilon = epsilon
         self.decaying_rate = decaying_rate
-        self.dim = (self.environment.state_space.n, self.environment.action_space.n)
+        try:
+            self.dim = (self.environment.state_space.n, self.environment.action_space.n)
+        except AttributeError:
+            self.dim = (4, self.environment.action_space.n)
+        self.q_values = self.initialize_q()
 
     def initialize_q(self):
         return np.zeros(self.dim)
@@ -59,7 +63,7 @@ class QLearning(object):
         else:
             target = reward
         return target
-            
+
     def q_update(self, current_state, current_action, target):
         q = (1 - self.q_learning_rate) * self.q_values[current_state, current_action] + self.q_learning_rate * target
         err = self.q_values[current_state, current_action] - q
@@ -91,7 +95,7 @@ class DeepQLearning(QLearning):
 
         Args:
             input_state (state): the input state
-        """        
+        """
         return input_state.reshape([1, input_state.shape[0]])
     
     def model_init(self, model_type, criterion, optimizer, net_learning_rate):
@@ -273,3 +277,15 @@ class DeepQLearning(QLearning):
         
         # end environment activity
         self.environment.env.close()
+
+if __name__ == "__main__":
+    cart_pole_env = CartPole()
+    dqn = DeepQLearning(environment=cart_pole_env,
+                        q_learning_rate=0.0005,
+                        discount_factor=0.95,
+                        decaying_rate=0.999,
+                        epsilon=1,
+                        model_type=ThreeLayersModel,
+                        optimizer=tf.keras.optimizers.Adam,
+                        criterion=tf.keras.losses.MSE,
+                        net_learning_rate=0.0005)
