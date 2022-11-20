@@ -12,7 +12,7 @@ if __name__ == "__main__":
     frozen_lake = FrozenLakeGame("Deterministic")
     lr_steps = []
     lr_rewards = []
-    q_algo = QLearning(environment=frozen_lake, learning_rate= 0.05,
+    q_algo = QLearning(environment=frozen_lake, q_learning_rate= 0.05,
                     discount_factor=0.99, decaying_rate=0.999,
                     epsilon= 0.9) 
                         
@@ -45,7 +45,7 @@ if __name__ == "__main__":
             step += 1
             
             # sample action based on epsilon-greedy method
-            current_action = q_algo.epsilon_greedy_action(current_state)
+            current_action = q_algo.sample_action(current_state)
             
             # apply environment step
             next_state, reward, done = q_algo.env_step(current_action)
