@@ -7,10 +7,12 @@ import numpy as np
 import gym
 from Models import *
 from Environments import *
+import random
 
 SEED = 42
 np.random.seed(SEED)
-
+random.seed(SEED)
+tf.random.set_seed(SEED)
 class QLearning(object):
     def __init__(self, environment, q_learning_rate:float,
                  discount_factor:float, decaying_rate:float,
@@ -23,7 +25,7 @@ class QLearning(object):
         try:
             self.dim = (self.environment.state_space.n, self.environment.action_space.n)
         except AttributeError:
-            self.dim = (4, self.environment.action_space.n)
+            self.dim = (self.environment.state_space.shape[0], self.environment.action_space.n)
         self.q_values = self.initialize_q()
 
     def initialize_q(self):
@@ -77,8 +79,8 @@ class DeepQLearning(QLearning):
                          decaying_rate, epsilon)
         
         # define the experience reply deque
-        self.maximal_reply_size = 10000
-        self.minimal_reply_size = 1000
+        self.maximal_reply_size = 100
+        self.minimal_reply_size = 10
         self.exp_reply_deque    = deque(maxlen=self.maximal_reply_size)
         
         # initialize models and equalize weights
@@ -87,7 +89,7 @@ class DeepQLearning(QLearning):
         self.assign_weights()
         
     def assign_weights(self):
-        main_model_weights = self.get_weights()
+        main_model_weights = self.main_model.get_weights()
         self.target_model.set_weights(main_model_weights)
     
     def model_input_reshape(self, input_state):
@@ -99,11 +101,9 @@ class DeepQLearning(QLearning):
         return input_state.reshape([1, input_state.shape[0]])
     
     def model_init(self, model_type, criterion, optimizer, net_learning_rate):
-        model = model_type(self.dim[0], self.dim[1])
-        model.compile(optimizer=optimizer(net_learning_rate),
-                      loss= criterion, 
-                      metrics=[tf.keras.metrics.MeanSquaredError])
-                    #   metrics=['mse'])
+        model = model_type((self.dim[0],), self.dim[1])
+        model.compile(optimizer=optimizer(learning_rate = net_learning_rate),
+                      loss= criterion, metrics=['mse'])
         return model
     
     def sample_action(self, current_state):
@@ -114,14 +114,14 @@ class DeepQLearning(QLearning):
             return self.environment.action_space.sample()
 
     def sample_batch(self, batch_size):
-        return np.random.choice(self.exp_reply_deque, batch_size)
+        return random.sample(self.exp_reply_deque, batch_size)
     
     def store_past_exp(self, current_state, current_action, reward, done, next_state):
         self.exp_reply_deque.append([current_state, current_action, reward, done, next_state])
     
     def get_target(self, next_state, reward, done):
         if not(done):
-            target = reward + self.discount_factor * np.max(self.target_model.predict(next_state))
+            target = reward + self.discount_factor * np.max(self.target_model.predict(self.model_input_reshape(next_state)))
         else:
             target = reward
         return target
@@ -177,15 +177,12 @@ class DeepQLearning(QLearning):
                                 epochs=epochs,
                                 shuffle=True)
     
-    def test_agent(self, state):
-        action = np.argmax(self.main_model.predict(self.model_input_reshape(state)).flatten())
-        next_state, reward, done = self.env_step(action)
-    
     def train_agent(self, num_of_episodes, weights_assign_num, training_num,
                     batch_size = 64, epochs=10):
         rewards          = []
         averaged_steps   = []
         averaged_rewards = []
+        steps_of_hundred_episodes = []
         for episode in range(num_of_episodes):
         
             # reset environment 
@@ -195,6 +192,7 @@ class DeepQLearning(QLearning):
             done = False
             step = 0
             update_counter = 0
+            overall_reward = 0
             
             # update epsilon value following decaying epsilon greedy method 
             self.update_epsilon()
@@ -223,10 +221,12 @@ class DeepQLearning(QLearning):
 
                 # move on to the next step 
                 current_state = next_state
-                rewards.append(reward)
+                overall_reward += reward
+                
                 
                 # check if game terminated
                 if done:
+                    rewards.append(overall_reward)
                     steps_of_hundred_episodes.append(step)
                     if update_counter >= weights_assign_num:
                         self.assign_weights()
@@ -245,37 +245,59 @@ class DeepQLearning(QLearning):
         # end environment activity
         self.environment.env.close()
 
-    def test_agent(self):
-        # reset environment
-        rewards = [] 
-        step = 0
-        current_state = self.environment.env.reset()[0]
-        done = False
-        plt.imshow(self.environment.env.render())
+    def test_agent(self, num_of_episodes):
+        rewards          = []
+        averaged_steps   = []
+        averaged_rewards = []
+        steps_of_hundred_episodes = []
+        for episode in range(num_of_episodes):
         
-        while True:
-            # increment steps
-            step += 1
-            update_counter += 1
+            # reset environment 
+            current_state = self.environment.env.reset()[0]
             
-            # perform action based on policy
-            current_action = np.argmax(self.main_model.predict(self.model_input_reshape(current_state)).flatten())
+            # initialize episode parameters
+            done = False
+            step = 0
+            update_counter = 0
+            overall_reward = 0
+            # plt.imshow(self.environment.env.render())
+            # plt.show()
+            while True:
+                # increment steps
+                step += 1
+                
+                # perform action based on policy
+                current_action = np.argmax(self.main_model.predict(self.model_input_reshape(current_state), verbose=0).flatten())
+                # print("current_action", current_action)
             
-            plt.imshow(self.environment.env.render())
-            
-            # apply environment step
-            next_state, reward, done = self.env_step(current_action)
+                # apply environment step
+                next_state, reward, done = self.env_step(current_action)
+                # plt.imshow(self.environment.env.render())
 
-            # move on to the next step 
-            current_state = next_state
-            rewards.append(reward)
+                # move on to the next step 
+                current_state = next_state
+                overall_reward += reward
+                # check if game terminated
+                if done:
+                    rewards.append(overall_reward)
+                    # plt.imshow(self.environment.env.render())
+                    steps_of_hundred_episodes.append(step)
+                    print("game ended after {} steps, overall reward is {}".format(step, overall_reward))
+                    break
             
-            # check if game terminated
-            if done:
-                print("game ended after {} steps, overall reward is {}".format(step, np.sum(rewards)))
-                break
+            if (episode % 100 == 0) and (episode != 0):
+                # calculate average number of steps every 100 episodes: 
+                averaged_steps.append(np.mean(np.array(steps_of_hundred_episodes)))
+                steps_of_hundred_episodes = []
+
+                # calculate average reward every 100 episodes: 
+                rewards_of_hundred_episodes = rewards[-100:]
+                averaged_rewards.append(np.mean(np.array(rewards_of_hundred_episodes)))
         
         # end environment activity
+        plt.plot(range(num_of_episodes), rewards)
+        plt.plot(range(num_of_episodes), steps_of_hundred_episodes)
+        plt.show()
         self.environment.env.close()
 
 if __name__ == "__main__":
@@ -289,3 +311,4 @@ if __name__ == "__main__":
                         optimizer=tf.keras.optimizers.Adam,
                         criterion=tf.keras.losses.MSE,
                         net_learning_rate=0.0005)
+    dqn.train_agent(num_of_episodes=100, weights_assign_num= 4, training_num=1, batch_size= 1, epochs=10)

@@ -24,7 +24,7 @@ if __name__ == "__main__":
     steps_of_hundred_episodes = []
     
     for episode in range(num_of_episodes):
-        print("episode: {}".format(episode))
+        # print("episode: {}".format(episode))
         
         ## print Q lookup table
         if episode in [499, 1999, 4999]:
@@ -72,7 +72,8 @@ if __name__ == "__main__":
                 break
         
         if (episode % 100 == 0) and (episode != 0):
-            # calculate average number of steps every 100 episodes: 
+            # calculate average number of steps every 100 episodes:
+            print(q_algo.epsilon) 
             averaged_steps.append(np.mean(np.array(steps_of_hundred_episodes)))
             steps_of_hundred_episodes = []
 
