@@ -79,8 +79,8 @@ class DeepQLearning(QLearning):
                          decaying_rate, epsilon)
         
         # define the experience reply deque
-        self.maximal_reply_size = 100
-        self.minimal_reply_size = 10
+        self.maximal_reply_size = 10000
+        self.minimal_reply_size = 100
         self.exp_reply_deque    = deque(maxlen=self.maximal_reply_size)
         
         # initialize models and equalize weights
@@ -109,7 +109,7 @@ class DeepQLearning(QLearning):
     def sample_action(self, current_state):
         odd = np.random.choice(2, 1, p=[self.epsilon, 1 - self.epsilon])
         if odd == 1:
-            return np.argmax(self.main_model.predict(self.model_input_reshape(current_state)).flatten()) 
+            return np.argmax(self.main_model.predict(self.model_input_reshape(current_state), verbose=0).flatten()) 
         else:
             return self.environment.action_space.sample()
 
@@ -121,14 +121,14 @@ class DeepQLearning(QLearning):
     
     def get_target(self, next_state, reward, done):
         if not(done):
-            target = reward + self.discount_factor * np.max(self.target_model.predict(self.model_input_reshape(next_state)))
+            target = reward + self.discount_factor * np.max(self.target_model.predict(self.model_input_reshape(next_state), verbose=0))
         else:
             target = reward
         return target
     
     def q_update(self, current_state, current_action, target):
         # calculate current model "q" function
-        model_q_value = self.main_model.predict(self.model_input_reshape(current_state)).flatten()
+        model_q_value = self.main_model.predict(self.model_input_reshape(current_state), verbose=0).flatten()
         
         # calculate the modified Bellman equation given main model output
         q = (1 - self.q_learning_rate) * model_q_value[current_action] + self.q_learning_rate * target
@@ -175,7 +175,8 @@ class DeepQLearning(QLearning):
             self.main_model.fit(x=observations, y=q_values,
                                 batch_size=batch_size,
                                 epochs=epochs,
-                                shuffle=True)
+                                shuffle=True,
+                                verbose=0)
     
     def train_agent(self, num_of_episodes, weights_assign_num, training_num,
                     batch_size = 64, epochs=10):
@@ -183,15 +184,14 @@ class DeepQLearning(QLearning):
         averaged_steps   = []
         averaged_rewards = []
         steps_of_hundred_episodes = []
+        update_counter = 0
         for episode in range(num_of_episodes):
-        
             # reset environment 
             current_state = self.environment.env.reset()[0]
             
             # initialize episode parameters
             done = False
             step = 0
-            update_counter = 0
             overall_reward = 0
             
             # update epsilon value following decaying epsilon greedy method 
@@ -227,9 +227,11 @@ class DeepQLearning(QLearning):
                 # check if game terminated
                 if done:
                     rewards.append(overall_reward)
+                    print("episode:{}, steps:{}, reward:{}".format(episode, overall_reward, step))
                     steps_of_hundred_episodes.append(step)
                     if update_counter >= weights_assign_num:
                         self.assign_weights()
+                        print("model loaded")
                         update_counter = 0
                     break
             
@@ -244,6 +246,7 @@ class DeepQLearning(QLearning):
         
         # end environment activity
         self.environment.env.close()
+        return rewards, averaged_steps, averaged_rewards
 
     def test_agent(self, num_of_episodes):
         rewards          = []
