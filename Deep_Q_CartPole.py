@@ -14,17 +14,17 @@ if __name__ == "__main__":
 
     dqn = DeepQLearning(environment=cart_pole_env,
                         q_learning_rate=0.0001,
-                        discount_factor=0.95,
+                        discount_factor=0.99,
                         decaying_rate=0.995,
-                        epsilon=1,
-                        model_type=FiveLayersModel,
+                        epsilon=1,g
+                        model_type=ThreeLayersModel,
                         optimizer=tf.keras.optimizers.Adam,
                         criterion=tf.keras.losses.MSE,
-                        net_learning_rate=0.002)
-    rewards, averaged_steps, averaged_rewards = dqn.train_agent(num_of_episodes=501,
-                                                                weights_assign_num=500,
-                                                                training_num=4,
-                                                                batch_size=150,
+                        net_learning_rate=0.01)
+    rewards, averaged_steps, averaged_rewards = dqn.train_agent(num_of_episodes=700,
+                                                                weights_assign_num=50,
+                                                                training_num=1,
+                                                                batch_size=64,
                                                                 epochs=1)
 
             
@@ -45,3 +45,5 @@ if __name__ == "__main__":
     ax[2].set_xlabel("episodes [*100]")
     ax[2].set_ylabel("averaged reward")
     plt.show()
+
+    print("ënd")

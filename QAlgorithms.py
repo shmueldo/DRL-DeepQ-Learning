@@ -53,6 +53,10 @@ class QLearning(object):
             Updates epsilon value by multiplying it by decaying rate
         """
         self.epsilon *= self.decaying_rate
+        # do not nullify epsilon for keep exploring
+        if self.epsilon < 0.05:
+            self.epsilon = 0.05
+
             
     def env_step(self, current_action):
         next_state, reward, terminated, truncated, _ = self.environment.env.step(current_action)
@@ -79,8 +83,8 @@ class DeepQLearning(QLearning):
                          decaying_rate, epsilon)
         
         # define the experience reply deque
-        self.maximal_reply_size = 50000
-        self.minimal_reply_size = 256
+        self.maximal_reply_size = 10000
+        self.minimal_reply_size = 100
         self.exp_reply_deque    = deque(maxlen=self.maximal_reply_size)
         
         # initialize models and equalize weights
@@ -91,6 +95,8 @@ class DeepQLearning(QLearning):
         # self.tensorboard = tensorboard
         
     def assign_weights(self):
+        if len(self.exp_reply_deque) < self.minimal_reply_size:
+            return
         main_model_weights = self.main_model.get_weights()
         self.target_model.set_weights(main_model_weights)
     
@@ -124,6 +130,8 @@ class DeepQLearning(QLearning):
         return random.sample(self.exp_reply_deque, batch_size)
     
     def store_past_exp(self, current_state, current_action, reward, done, next_state):
+        if len(self.exp_reply_deque) > self.maximal_reply_size:
+            self.exp_reply_deque.popleft()
         self.exp_reply_deque.append([current_state, current_action, reward, done, next_state])
     
     def get_target(self, next_q_val, reward, done):
@@ -135,10 +143,7 @@ class DeepQLearning(QLearning):
     
     def q_update(self, current_q_val, current_action, target):
         
-        # calculate the modified Bellman equation given main model output
-        # q = (1 - self.q_learning_rate) * current_q_val[current_action] + self.q_learning_rate * target
-        
-        # update the model current action output
+        # # update the model current action output
         current_q_val[current_action] = target
         return current_q_val
     
@@ -174,21 +179,16 @@ class DeepQLearning(QLearning):
             target = self.get_target(next_q_val[i], reward, done)
             
             # update the model current action i.e. modified q-value and append to q_values
-            # q_values.append(self.q_update(current_q_val[i], current_action, target))
-            q_values.append(target)
+            q_values.append(self.q_update(current_q_val[i], current_action, target))
         
         return np.array(observations), np.array(q_values) 
         
     def train(self, batch_size, epochs):
-        if len(self.exp_reply_deque) >= self.minimal_reply_size:
+        if len(self.exp_reply_deque) >= self.minimal_reply_size and len(self.exp_reply_deque) >= batch_size:
             # generate datasets for training
             observations, q_values = self.generate_training_database(batch_size)
             # train model
-            self.main_model.fit(x=observations, y=q_values,
-                                batch_size=batch_size,
-                                epochs=epochs,
-                                shuffle=True,
-                                verbose=0)
+            self.main_model.train_on_batch(x=observations, y=q_values)
     
     def train_agent(self, num_of_episodes, weights_assign_num, training_num,
                     batch_size = 64, epochs=10):
@@ -246,7 +246,7 @@ class DeepQLearning(QLearning):
                     #     update_counter = 0
                     break
             
-            if (episode % 20 == 0) and (episode != 0):
+            if (episode % weights_assign_num == 0) and (episode != 0):
                 self.assign_weights()
                 print("model loaded")
             
@@ -330,4 +330,4 @@ if __name__ == "__main__":
                         criterion=tf.keras.losses.MSE,
                         net_learning_rate=0.0005)
     dqn.train_agent(num_of_episodes=100, weights_assign_num= 4, training_num=1, batch_size= 1, epochs=10)
-    print(ënd)
+    print("ënd")
