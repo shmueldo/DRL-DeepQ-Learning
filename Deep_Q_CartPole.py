@@ -13,19 +13,19 @@ if __name__ == "__main__":
     lr_rewards = []
 
     dqn = DeepQLearning(environment=cart_pole_env,
-                        q_learning_rate=0.0005,
+                        q_learning_rate=0.0001,
                         discount_factor=0.95,
-                        decaying_rate=0.95,
-                        epsilon=0.99,
-                        model_type=ThreeLayersModel,
+                        decaying_rate=0.995,
+                        epsilon=1,
+                        model_type=FiveLayersModel,
                         optimizer=tf.keras.optimizers.Adam,
                         criterion=tf.keras.losses.MSE,
-                        net_learning_rate=0.001)
+                        net_learning_rate=0.002)
     rewards, averaged_steps, averaged_rewards = dqn.train_agent(num_of_episodes=501,
-                                                                weights_assign_num= 100,
+                                                                weights_assign_num=500,
                                                                 training_num=4,
-                                                                batch_size= 64,
-                                                                epochs=10)
+                                                                batch_size=150,
+                                                                epochs=1)
 
             
     fig = plt.figure()
