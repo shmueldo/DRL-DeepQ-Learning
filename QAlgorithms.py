@@ -83,7 +83,7 @@ class DeepQLearning(QLearning):
                          decaying_rate, epsilon)
         
         # define the experience reply deque
-        self.maximal_reply_size = 10000
+        self.maximal_reply_size = 5000
         self.minimal_reply_size = 100
         self.exp_reply_deque    = deque(maxlen=self.maximal_reply_size)
         
@@ -240,15 +240,15 @@ class DeepQLearning(QLearning):
                     rewards.append(overall_reward)
                     print("episode:{}, steps:{}, reward:{}".format(episode, overall_reward, step))
                     steps_of_hundred_episodes.append(step)
-                    # if update_counter >= weights_assign_num:
-                    #     self.assign_weights()
-                    #     print("model loaded")
-                    #     update_counter = 0
+                    if update_counter >= weights_assign_num:
+                        self.assign_weights()
+                        print("model loaded")
+                        update_counter = 0
                     break
             
-            if (episode % weights_assign_num == 0) and (episode != 0):
-                self.assign_weights()
-                print("model loaded")
+            # if (episode % weights_assign_num == 0) and (episode != 0):
+            #     self.assign_weights()
+            #     print("model loaded")
             
             if (episode % 100 == 0) and (episode != 0):
                 # calculate average number of steps every 100 episodes: 
@@ -258,6 +258,9 @@ class DeepQLearning(QLearning):
                 # calculate average reward every 100 episodes: 
                 rewards_of_hundred_episodes = rewards[-100:]
                 averaged_rewards.append(np.mean(np.array(rewards_of_hundred_episodes)))
+            if (episode > 100):
+                rewards_of_hundred_episodes = rewards[-100:]
+                print(rewards_of_hundred_episodes)
         
         # end environment activity
         self.environment.env.close()
