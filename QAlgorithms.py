@@ -79,8 +79,8 @@ class DeepQLearning(QLearning):
                          decaying_rate, epsilon)
         
         # define the experience reply deque
-        self.maximal_reply_size = 10000
-        self.minimal_reply_size = 100
+        self.maximal_reply_size = 50000
+        self.minimal_reply_size = 256
         self.exp_reply_deque    = deque(maxlen=self.maximal_reply_size)
         
         # initialize models and equalize weights
@@ -88,9 +88,16 @@ class DeepQLearning(QLearning):
         self.target_model       = self.model_init(model_type, criterion, optimizer, net_learning_rate)
         self.assign_weights()
         
+        # self.tensorboard = tensorboard
+        
     def assign_weights(self):
         main_model_weights = self.main_model.get_weights()
         self.target_model.set_weights(main_model_weights)
+    
+    def env_step(self, current_action):
+        next_state, reward, terminated, truncated, _ = self.environment.env.step(current_action)
+        done = terminated
+        return next_state, reward, done
     
     def model_input_reshape(self, input_state):
         """ reshape single state input as a model input
@@ -109,7 +116,7 @@ class DeepQLearning(QLearning):
     def sample_action(self, current_state):
         odd = np.random.choice(2, 1, p=[self.epsilon, 1 - self.epsilon])
         if odd == 1:
-            return np.argmax(self.main_model.predict(self.model_input_reshape(current_state), verbose=0).flatten()) 
+            return np.argmax(self.main_model.predict(self.model_input_reshape(current_state), verbose=0).flatten())
         else:
             return self.environment.action_space.sample()
 
@@ -119,23 +126,21 @@ class DeepQLearning(QLearning):
     def store_past_exp(self, current_state, current_action, reward, done, next_state):
         self.exp_reply_deque.append([current_state, current_action, reward, done, next_state])
     
-    def get_target(self, next_state, reward, done):
+    def get_target(self, next_q_val, reward, done):
         if not(done):
-            target = reward + self.discount_factor * np.max(self.target_model.predict(self.model_input_reshape(next_state), verbose=0))
+            target = reward + self.discount_factor * np.max(next_q_val)
         else:
             target = reward
         return target
     
-    def q_update(self, current_state, current_action, target):
-        # calculate current model "q" function
-        model_q_value = self.main_model.predict(self.model_input_reshape(current_state), verbose=0).flatten()
+    def q_update(self, current_q_val, current_action, target):
         
         # calculate the modified Bellman equation given main model output
-        q = (1 - self.q_learning_rate) * model_q_value[current_action] + self.q_learning_rate * target
+        # q = (1 - self.q_learning_rate) * current_q_val[current_action] + self.q_learning_rate * target
         
         # update the model current action output
-        model_q_value[current_action] = q
-        return model_q_value[current_action]
+        current_q_val[current_action] = target
+        return current_q_val
     
     def generate_training_database(self, batch_size):
         """generates datasets for the main model training \
@@ -154,16 +159,23 @@ class DeepQLearning(QLearning):
         
         mini_batch = self.sample_batch(batch_size)
         
-        for exp_sample in mini_batch:
+        current_states  = np.array([batch_data[0] for batch_data in mini_batch])
+        current_q_val   = self.main_model.predict(current_states, verbose = 0)
+        
+        next_states     = np.array([batch_data[4] for batch_data in mini_batch])
+        next_q_val      = self.target_model.predict(next_states, verbose = 0)
+        
+        for i,exp_sample in enumerate(mini_batch):
             # assign variables for iteration and model
             current_state, current_action, reward, done, next_state = exp_sample
             observations.append(current_state)
             
             # get target based on target model
-            target = self.get_target(next_state, reward, done)
+            target = self.get_target(next_q_val[i], reward, done)
             
             # update the model current action i.e. modified q-value and append to q_values
-            q_values.append(self.q_update(current_state, current_action, target))
+            # q_values.append(self.q_update(current_q_val[i], current_action, target))
+            q_values.append(target)
         
         return np.array(observations), np.array(q_values) 
         
@@ -223,17 +235,20 @@ class DeepQLearning(QLearning):
                 current_state = next_state
                 overall_reward += reward
                 
-                
                 # check if game terminated
                 if done:
                     rewards.append(overall_reward)
                     print("episode:{}, steps:{}, reward:{}".format(episode, overall_reward, step))
                     steps_of_hundred_episodes.append(step)
-                    if update_counter >= weights_assign_num:
-                        self.assign_weights()
-                        print("model loaded")
-                        update_counter = 0
+                    # if update_counter >= weights_assign_num:
+                    #     self.assign_weights()
+                    #     print("model loaded")
+                    #     update_counter = 0
                     break
+            
+            if (episode % 20 == 0) and (episode != 0):
+                self.assign_weights()
+                print("model loaded")
             
             if (episode % 100 == 0) and (episode != 0):
                 # calculate average number of steps every 100 episodes: 
@@ -315,3 +330,4 @@ if __name__ == "__main__":
                         criterion=tf.keras.losses.MSE,
                         net_learning_rate=0.0005)
     dqn.train_agent(num_of_episodes=100, weights_assign_num= 4, training_num=1, batch_size= 1, epochs=10)
+    print(ënd)
