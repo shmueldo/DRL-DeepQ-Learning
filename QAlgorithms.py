@@ -13,6 +13,8 @@ SEED = 42
 np.random.seed(SEED)
 random.seed(SEED)
 tf.random.set_seed(SEED)
+random.seed(42)
+
 class QLearning(object):
     def __init__(self, environment, q_learning_rate:float,
                  discount_factor:float, decaying_rate:float,
@@ -84,7 +86,7 @@ class DeepQLearning(QLearning):
         
         # define the experience reply deque
         self.maximal_reply_size = 5000
-        self.minimal_reply_size = 100
+        self.minimal_reply_size = 150
         self.exp_reply_deque    = deque(maxlen=self.maximal_reply_size)
         
         # initialize models and equalize weights
@@ -235,6 +237,10 @@ class DeepQLearning(QLearning):
                 current_state = next_state
                 overall_reward += reward
                 
+                # truncate is reach 500 steps
+                if step >= 500:
+                    done = True
+                
                 # check if game terminated
                 if done:
                     rewards.append(overall_reward)
@@ -260,7 +266,7 @@ class DeepQLearning(QLearning):
                 averaged_rewards.append(np.mean(np.array(rewards_of_hundred_episodes)))
             if (episode > 100):
                 rewards_of_hundred_episodes = rewards[-100:]
-                print(rewards_of_hundred_episodes)
+                print("rewards_of_hundred_episodes:", np.mean(np.array(rewards_of_hundred_episodes)))
         
         # end environment activity
         self.environment.env.close()

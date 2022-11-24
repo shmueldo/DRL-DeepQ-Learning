@@ -21,10 +21,10 @@ if __name__ == "__main__":
                         optimizer=tf.keras.optimizers.Adam,
                         criterion=tf.keras.losses.MSE,
                         net_learning_rate=0.002)
-    rewards, averaged_steps, averaged_rewards = dqn.train_agent(num_of_episodes=700,
+    rewards, averaged_steps, averaged_rewards = dqn.train_agent(num_of_episodes=500,
                                                                 weights_assign_num=10,
                                                                 training_num=1,
-                                                                batch_size=64,
+                                                                batch_size=128,
                                                                 epochs=1)
 
             
