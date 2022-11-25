@@ -1,13 +1,16 @@
 from matplotlib import pyplot as plt
 import tensorflow as tf
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense
 from collections import deque
 import numpy as np
 import gym
 from Models import *
 from Environments import *
 import random
+import time
+from tqdm import tqdm
+import os
+from ModifiedTensorBoard import *
+from datetime import datetime
 
 SEED = 42
 np.random.seed(SEED)
@@ -80,9 +83,10 @@ class QLearning(object):
 class DeepQLearning(QLearning):
     def __init__(self, environment, q_learning_rate:float, discount_factor:float,
                  decaying_rate:float, epsilon:float, model_type:tf.keras.Model,
-                 criterion, optimizer, net_learning_rate):
+                 criterion, optimizer, net_learning_rate, model_name):
         super().__init__(environment, q_learning_rate, discount_factor,
                          decaying_rate, epsilon)
+        
         
         # define the experience reply deque
         self.maximal_reply_size = 5000
@@ -93,9 +97,13 @@ class DeepQLearning(QLearning):
         self.main_model         = self.model_init(model_type, criterion, optimizer, net_learning_rate)
         self.target_model       = self.model_init(model_type, criterion, optimizer, net_learning_rate)
         self.assign_weights()
+        self.model_name = model_name
         
-        # self.tensorboard = tensorboard
-        
+        # Custom tensorboard object
+        self.tensorboard = ModifiedTensorBoard(self.model_name,
+                                               log_dir="{}logs/{}-{}".format(os.getcwd() +r"/",
+                                                self.model_name, datetime.now().strftime("%d%m-%H%M")))
+
     def assign_weights(self):
         if len(self.exp_reply_deque) < self.minimal_reply_size:
             return
@@ -185,22 +193,27 @@ class DeepQLearning(QLearning):
         
         return np.array(observations), np.array(q_values) 
         
-    def train(self, batch_size, epochs):
-        if len(self.exp_reply_deque) >= self.minimal_reply_size and len(self.exp_reply_deque) >= batch_size:
-            # generate datasets for training
-            observations, q_values = self.generate_training_database(batch_size)
-            # train model
-            self.main_model.train_on_batch(x=observations, y=q_values)
+    def train(self, batch_size, step):
+        observations, q_values = self.generate_training_database(batch_size)
+        # train model
+        self.main_model.fit(x=observations, y=q_values,
+                                   batch_size=batch_size,
+                                   verbose=0,
+                                   callbacks=[self.tensorboard])
+        
     
     def train_agent(self, num_of_episodes, weights_assign_num, training_num,
                     batch_size = 64, epochs=10):
         rewards          = []
+        losses             = []
         averaged_steps   = []
         averaged_rewards = []
         steps_of_hundred_episodes = []
+        beat_mean_reward = 0
         update_counter = 0
-        for episode in range(num_of_episodes):
-            # reset environment 
+        overall_steps = 0
+        for episode in tqdm(range(num_of_episodes)):
+            # Reset environment 
             current_state = self.environment.env.reset()[0]
             
             # initialize episode parameters
@@ -208,15 +221,19 @@ class DeepQLearning(QLearning):
             step = 0
             overall_reward = 0
             
-            # update epsilon value following decaying epsilon greedy method 
+            # Update epsilon value following decaying epsilon greedy method 
             self.update_epsilon()
             
             while True:
-                # increment steps
+                #update tensor board step
+                self.tensorboard.step = overall_steps
+                
+                # Increment steps
                 step += 1
+                overall_steps +=1
                 update_counter += 1
                 
-                # sample action based on epsilon-greedy method
+                # Sample action based on epsilon-greedy method
                 current_action = self.sample_action(current_state)
                 
                 # apply environment step
@@ -231,46 +248,50 @@ class DeepQLearning(QLearning):
                 
                 # train the main model
                 if update_counter % training_num == 0:
-                    self.train(batch_size=batch_size, epochs=epochs)
+                    if len(self.exp_reply_deque) >= self.minimal_reply_size and len(self.exp_reply_deque) >= batch_size:
+                        self.train(batch_size=batch_size, step=overall_steps)
 
                 # move on to the next step 
                 current_state = next_state
                 overall_reward += reward
                 
                 # truncate is reach 500 steps
-                if step >= 500:
+                if step >= 1000:
                     done = True
                 
                 # check if game terminated
                 if done:
                     rewards.append(overall_reward)
-                    print("episode:{}, steps:{}, reward:{}".format(episode, overall_reward, step))
+                    print("episode:{}, steps:{}".format(episode, step))
                     steps_of_hundred_episodes.append(step)
                     if update_counter >= weights_assign_num:
                         self.assign_weights()
-                        print("model loaded")
+                        # print("model loaded")
                         update_counter = 0
                     break
-            
-            # if (episode % weights_assign_num == 0) and (episode != 0):
-            #     self.assign_weights()
-            #     print("model loaded")
-            
-            if (episode % 100 == 0) and (episode != 0):
-                # calculate average number of steps every 100 episodes: 
-                averaged_steps.append(np.mean(np.array(steps_of_hundred_episodes)))
-                steps_of_hundred_episodes = []
 
+            if (episode <= 100):
+                mean_reward = np.mean(np.array(rewards))
+            
+            else:
                 # calculate average reward every 100 episodes: 
-                rewards_of_hundred_episodes = rewards[-100:]
-                averaged_rewards.append(np.mean(np.array(rewards_of_hundred_episodes)))
-            if (episode > 100):
-                rewards_of_hundred_episodes = rewards[-100:]
-                print("rewards_of_hundred_episodes:", np.mean(np.array(rewards_of_hundred_episodes)))
+                mean_reward = np.mean(np.array(rewards[-100:]))
+            
+            ## save model weights for better validation performences
+            if mean_reward > beat_mean_reward:
+                print("mean reward increased {}--->{}, saving model".format(beat_mean_reward, mean_reward))
+                beat_mean_reward = mean_reward
+                best_episode = episode
+                
+                ## Saving State Dict
+                # self.main_model.save_weights(os.getcwd() + r"\Model_weights\{}_weights".format(self.model_name))
+            
+            averaged_rewards.append(mean_reward)
+            self.tensorboard.update_stats(Rewards_per_episode = overall_reward, mean_reward= mean_reward, step=episode)
         
         # end environment activity
         self.environment.env.close()
-        return rewards, averaged_steps, averaged_rewards
+        return rewards, averaged_steps, averaged_rewards, losses
 
     def test_agent(self, num_of_episodes):
         rewards          = []
@@ -293,18 +314,19 @@ class DeepQLearning(QLearning):
                 # increment steps
                 step += 1
                 
-                # perform action based on policy
+                # Perform action based on policy
                 current_action = np.argmax(self.main_model.predict(self.model_input_reshape(current_state), verbose=0).flatten())
                 # print("current_action", current_action)
             
-                # apply environment step
+                # Apply environment step
                 next_state, reward, done = self.env_step(current_action)
                 # plt.imshow(self.environment.env.render())
 
-                # move on to the next step 
+                # Move on to the next step 
                 current_state = next_state
                 overall_reward += reward
-                # check if game terminated
+               
+                # Check if game terminated
                 if done:
                     rewards.append(overall_reward)
                     # plt.imshow(self.environment.env.render())

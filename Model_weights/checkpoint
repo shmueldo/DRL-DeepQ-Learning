@@ -1,0 +1,2 @@
+model_checkpoint_path: "sim2_weights"
+all_model_checkpoint_paths: "sim2_weights"
