@@ -107,9 +107,13 @@ class DeepQLearning(QLearning):
     def assign_weights(self):
         if len(self.exp_reply_deque) < self.minimal_reply_size:
             return
-        main_model_weights = self.main_model.get_weights()
-        self.target_model.set_weights(main_model_weights)
-    
+        try:
+            main_model_weights = self.main_model.get_weights()
+            self.target_model.set_weights(main_model_weights)
+        except ValueError:
+            print("Value error")
+            pass
+
     def env_step(self, current_action):
         next_state, reward, terminated, truncated, _ = self.environment.env.step(current_action)
         done = terminated
@@ -255,7 +259,7 @@ class DeepQLearning(QLearning):
                 current_state = next_state
                 overall_reward += reward
                 
-                # truncate is reach 500 steps
+                # truncate is reach 1000 steps
                 if step >= 1000:
                     done = True
                 
@@ -284,8 +288,10 @@ class DeepQLearning(QLearning):
                 best_episode = episode
                 
                 ## Saving State Dict
-                # self.main_model.save_weights(os.getcwd() + r"\Model_weights\{}_weights".format(self.model_name))
+                self.main_model.save_weights(os.getcwd() + r"\Model_weights\{}_weights".format(self.model_name))
             
+                if mean_reward > 476:
+                    break
             averaged_rewards.append(mean_reward)
             self.tensorboard.update_stats(Rewards_per_episode = overall_reward, mean_reward= mean_reward, step=episode)
         
