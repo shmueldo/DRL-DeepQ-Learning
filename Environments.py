@@ -30,6 +30,10 @@ class CartPole(object):
             is_slippery=False
             
         self.env = gym.make('CartPole-v1', render_mode="rgb_array")
+        # self.env.seed(42)
+
+        self.env._max_episode_steps = 1000
+        # self.env.seed(SEED)
         
         # define actions parameters
         self.action_space = self.env.action_space
