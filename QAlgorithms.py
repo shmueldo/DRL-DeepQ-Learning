@@ -59,8 +59,8 @@ class QLearning(object):
         """
         self.epsilon *= self.decaying_rate
         # do not nullify epsilon for keep exploring
-        if self.epsilon < 0.05:
-            self.epsilon = 0.05
+        # if self.epsilon < 0.05:
+        #     self.epsilon = 0.05
 
             
     def env_step(self, current_action):
@@ -89,7 +89,7 @@ class DeepQLearning(QLearning):
         
         
         # define the experience reply deque
-        self.maximal_reply_size = 5000
+        self.maximal_reply_size = 50000
         self.minimal_reply_size = 150
         self.exp_reply_deque    = deque(maxlen=self.maximal_reply_size)
         
@@ -259,8 +259,8 @@ class DeepQLearning(QLearning):
                 current_state = next_state
                 overall_reward += reward
                 
-                # truncate is reach 1000 steps
-                if step >= 1000:
+                # truncate is reach 500 steps
+                if step >= 500:
                     done = True
                 
                 # check if game terminated
@@ -270,7 +270,6 @@ class DeepQLearning(QLearning):
                     steps_of_hundred_episodes.append(step)
                     if update_counter >= weights_assign_num:
                         self.assign_weights()
-                        # print("model loaded")
                         update_counter = 0
                     break
 
@@ -290,10 +289,10 @@ class DeepQLearning(QLearning):
                 ## Saving State Dict
                 self.main_model.save_weights(os.getcwd() + r"\Model_weights\{}_weights".format(self.model_name))
             
-                if mean_reward > 476:
-                    break
             averaged_rewards.append(mean_reward)
             self.tensorboard.update_stats(Rewards_per_episode = overall_reward, mean_reward= mean_reward, step=episode)
+            if mean_reward > 476:
+                break
         
         # end environment activity
         self.environment.env.close()
