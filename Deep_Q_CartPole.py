@@ -9,7 +9,8 @@ import tensorflow as tf
 import h5py
     
     
-if __name__ == "__main__": 
+if __name__ == "__main__":
+    TEST = False 
     cart_pole_env = CartPole()
     print("DeepQLearning")
     dqn = DeepQLearning(environment=cart_pole_env,
@@ -28,8 +29,9 @@ if __name__ == "__main__":
                                                                 training_num=1,
                                                                 batch_size=128,
                                                                 epochs=1)
-    dqn.main_model.load_weights(r"G:\Other computers\ה-מחשב נייד שלי\תואר שני\Reinforcement Learning\Assignments\Ass1\Model_weights\optimal_checkpoint\FiveLayersModel_weights")
-    dqn.test_agent(150)
+    if TEST:
+        dqn.main_model.load_weights(os.getcwd() + r"\Model_weights\optimal_checkpoint\DDQN_weights")
+        dqn.test_agent(150)
     
     with open(os.getcwd() + r"\lists\rewards_50weights_assign_num.npy", 'wb') as f:
         np.save(f, np.array(rewards))
