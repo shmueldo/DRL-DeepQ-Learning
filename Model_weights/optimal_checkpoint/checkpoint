@@ -1,2 +1,2 @@
-model_checkpoint_path: "FiveLayersModel_weights"
-all_model_checkpoint_paths: "FiveLayersModel_weights"
+model_checkpoint_path: "DDQN_weights"
+all_model_checkpoint_paths: "DDQN_weights"
