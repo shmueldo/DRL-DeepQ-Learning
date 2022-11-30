@@ -321,7 +321,7 @@ class DeepQLearning(QLearning):
             done = False
             step = 0
             overall_reward = 0
-            plt.imshow(self.environment.env.render())
+            # plt.imshow(self.environment.env.render())
             while True:
                 # increment steps
                 step += 1
@@ -332,9 +332,10 @@ class DeepQLearning(QLearning):
             
                 # Apply environment step
                 next_state, reward, done = self.env_step(current_action)
-                if step % 5 == 0:
-                    plt.imshow(self.environment.env.render())
-                    plt.close()
+                # if step % 5 == 0:
+                #     plt.imshow(self.environment.env.render())
+                #     plt.close()
+                
                 # Move on to the next step 
                 current_state = next_state
                 overall_reward += reward
