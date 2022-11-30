@@ -11,6 +11,7 @@ from tqdm import tqdm
 import os
 from ModifiedTensorBoard import *
 from datetime import datetime
+import keras.backend as K
 
 SEED = 42
 np.random.seed(SEED)
@@ -58,6 +59,7 @@ class QLearning(object):
             Updates epsilon value by multiplying it by decaying rate
         """
         self.epsilon *= self.decaying_rate
+        
         # do not nullify epsilon for keep exploring
         if self.epsilon < 0.05:
             self.epsilon = 0.05
@@ -94,8 +96,9 @@ class DeepQLearning(QLearning):
         self.exp_reply_deque    = deque(maxlen=self.maximal_reply_size)
         
         # initialize models and equalize weights
-        self.main_model         = self.model_init(model_type, criterion, optimizer, net_learning_rate)
-        self.target_model       = self.model_init(model_type, criterion, optimizer, net_learning_rate)
+        self.net_learning_rate = net_learning_rate
+        self.main_model         = self.model_init(model_type, criterion, optimizer, self.net_learning_rate)
+        self.target_model       = self.model_init(model_type, criterion, optimizer, self.net_learning_rate)
         self.assign_weights()
         self.model_name = model_name
         
@@ -197,7 +200,7 @@ class DeepQLearning(QLearning):
         
         return np.array(observations), np.array(q_values) 
         
-    def train(self, batch_size, step):
+    def train(self, batch_size):
         observations, q_values = self.generate_training_database(batch_size)
         # train model
         self.main_model.fit(x=observations, y=q_values,
@@ -228,6 +231,12 @@ class DeepQLearning(QLearning):
             # Update epsilon value following decaying epsilon greedy method 
             self.update_epsilon()
             
+            
+            # decay lr every 10k steps
+            # if (episode % 50 == 0 and episode != 0):
+                # K.set_value(self.main_model.optimizer.lr, self.main_model.optimizer.lr * 0.1)
+
+            
             while True:
                 #update tensor board step
                 self.tensorboard.step = overall_steps
@@ -253,14 +262,14 @@ class DeepQLearning(QLearning):
                 # train the main model
                 if update_counter % training_num == 0:
                     if len(self.exp_reply_deque) >= self.minimal_reply_size and len(self.exp_reply_deque) >= batch_size:
-                        self.train(batch_size=batch_size, step=overall_steps)
+                        self.train(batch_size=batch_size)
 
                 # move on to the next step 
                 current_state = next_state
                 overall_reward += reward
                 
-                # truncate is reach 1000 steps
-                if step >= 1000:
+                # truncate is reach 500 steps
+                if step >= 500:
                     done = True
                 
                 # check if game terminated
@@ -270,7 +279,6 @@ class DeepQLearning(QLearning):
                     steps_of_hundred_episodes.append(step)
                     if update_counter >= weights_assign_num:
                         self.assign_weights()
-                        # print("model loaded")
                         update_counter = 0
                     break
 
@@ -290,10 +298,10 @@ class DeepQLearning(QLearning):
                 ## Saving State Dict
                 self.main_model.save_weights(os.getcwd() + r"\Model_weights\{}_weights".format(self.model_name))
             
-                if mean_reward > 476:
-                    break
             averaged_rewards.append(mean_reward)
             self.tensorboard.update_stats(Rewards_per_episode = overall_reward, mean_reward= mean_reward, step=episode)
+            if mean_reward > 476:
+                break
         
         # end environment activity
         self.environment.env.close()
@@ -355,6 +363,172 @@ class DeepQLearning(QLearning):
         plt.show()
         self.environment.env.close()
 
+class DoubleDeepQLearning(DeepQLearning):
+    def __init__(self, environment, q_learning_rate:float, discount_factor:float,
+                 decaying_rate:float, epsilon:float, model_type:tf.keras.Model,
+                 criterion, optimizer, net_learning_rate, model_name):
+        super().__init__(environment, q_learning_rate, discount_factor,
+                         decaying_rate, epsilon, model_type,
+                         criterion, optimizer, net_learning_rate, model_name)
+        self.rate_of_averaging = 0.01
+    
+    def get_target(self, optimal_action, next_q_val, reward, done):
+        if not(done):
+            target = reward + self.discount_factor * next_q_val[optimal_action]
+        else:
+            target = reward
+        return target
+    
+    def assign_weights_averaging(self):
+        if len(self.exp_reply_deque) < self.minimal_reply_size:
+            return
+        try:
+            main_model_weights = self.main_model.get_weights()
+            target_model_weights = self.main_model.get_weights()
+            self.target_model.set_weights(self.rate_of_averaging * main_model_weights + (1-self.rate_of_averaging) * target_model_weights)
+        
+        except ValueError:
+            print("Value error")
+            pass
+
+    def generate_training_database(self, batch_size):
+        """generates datasets for the main model training \
+           where the input data is the current states and the "labels" \
+           are updated modified q values, based on Bellman equation
+
+        Args:
+            batch_size (int): size of sampled mini-batch (from experience reply deque)
+
+        Returns:
+            observations (NDArray): observations dataset
+            q_values     (NDArray): modified q values dataset
+        """        
+        observations = []
+        q_values     = []
+        
+        mini_batch = self.sample_batch(batch_size)
+        
+        current_states  = np.array([batch_data[0] for batch_data in mini_batch])
+        
+        current_q_val   = self.main_model.predict(current_states, verbose = 0)
+        
+        next_states     = np.array([batch_data[4] for batch_data in mini_batch])
+        next_main_q_val = self.main_model.predict(next_states, verbose = 0)
+        next_q_val      = self.target_model.predict(next_states, verbose = 0)
+        
+        for i,exp_sample in enumerate(mini_batch):
+            # assign variables for iteration and model
+            current_state, current_action, reward, done, next_state = exp_sample
+            observations.append(current_state)
+
+            #find optimal action via main model
+            optimal_action = np.argmax(next_main_q_val[i])
+                        
+            # get target based on target model
+            target = self.get_target(optimal_action, next_q_val[i], reward, done)
+            
+            # update the model current action i.e. modified q-value and append to q_values
+            q_values.append(self.q_update(current_q_val[i], current_action, target))
+        
+        return np.array(observations), np.array(q_values) 
+    
+    def train_agent(self, num_of_episodes, weights_assign_num, training_num,
+                    batch_size = 64, epochs=10):
+        rewards          = []
+        losses             = []
+        averaged_steps   = []
+        averaged_rewards = []
+        steps_of_hundred_episodes = []
+        beat_mean_reward = 0
+        update_counter = 0
+        overall_steps = 0
+        for episode in tqdm(range(num_of_episodes)):
+            # Reset environment 
+            current_state = self.environment.env.reset()[0]
+            
+            # initialize episode parameters
+            done = False
+            step = 0
+            overall_reward = 0
+            
+            # Update epsilon value following decaying epsilon greedy method 
+            self.update_epsilon()
+            
+            
+            # decay lr 
+            K.set_value(self.main_model.optimizer.lr, self.main_model.optimizer.lr * 0.99)
+            print("lr = ", self.main_model.optimizer.lr)
+            
+            while True:
+                #update tensor board step
+                self.tensorboard.step = overall_steps
+                
+                # Increment steps
+                step += 1
+                overall_steps +=1
+                update_counter += 1
+                
+                # Sample action based on epsilon-greedy method
+                current_action = self.sample_action(current_state)
+                
+                # apply environment step
+                next_state, reward, done = self.env_step(current_action)
+                
+                # enrich the experience reply deque
+                self.store_past_exp(current_state=current_state,
+                                    current_action= current_action,
+                                    reward=reward,
+                                    done=done,
+                                    next_state=next_state)
+                
+                # train the main model
+                if update_counter % training_num == 0:
+                    if len(self.exp_reply_deque) >= self.minimal_reply_size and len(self.exp_reply_deque) >= batch_size:
+                        self.train(batch_size=batch_size)
+
+                # move on to the next step 
+                current_state = next_state
+                overall_reward += reward
+                
+                # truncate is reach 500 steps
+                if step >= 500:
+                    done = True
+                
+                # check if game terminated
+                if done:
+                    rewards.append(overall_reward)
+                    print("episode:{}, steps:{}".format(episode, step))
+                    steps_of_hundred_episodes.append(step)
+                    if update_counter >= weights_assign_num:
+                        self.assign_weights()
+                        update_counter = 0
+                    break
+
+            if (episode <= 100):
+                mean_reward = np.mean(np.array(rewards))
+            
+            else:
+                # calculate average reward every 100 episodes: 
+                mean_reward = np.mean(np.array(rewards[-100:]))
+            
+            ## save model weights for better validation performances
+            if mean_reward > beat_mean_reward:
+                print("mean reward increased {}--->{}, saving model".format(beat_mean_reward, mean_reward))
+                beat_mean_reward = mean_reward
+                best_episode = episode
+                
+                ## Saving State Dict
+                self.main_model.save_weights(os.getcwd() + r"\Model_weights\{}_weights".format(self.model_name))
+            
+            averaged_rewards.append(mean_reward)
+            self.tensorboard.update_stats(Rewards_per_episode = overall_reward, mean_reward= mean_reward, step=episode)
+            if mean_reward > 476:
+                break
+        
+        # end environment activity
+        self.environment.env.close()
+        return rewards, averaged_steps, averaged_rewards, losses
+        
 if __name__ == "__main__":
     cart_pole_env = CartPole()
     dqn = DeepQLearning(environment=cart_pole_env,

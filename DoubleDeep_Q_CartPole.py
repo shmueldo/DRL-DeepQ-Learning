@@ -8,10 +8,10 @@ from datetime import datetime
 import tensorflow as tf
     
     
-if __name__ == "__main__": 
+if __name__ == "__main__":
     cart_pole_env = CartPole()
-    print("DeepQLearning")
-    dqn = DeepQLearning(environment=cart_pole_env,
+    print("DoubleDeepQLearning")
+    dqn = DoubleDeepQLearning(environment=cart_pole_env,
                             q_learning_rate=0.0001,
                             discount_factor=0.95,
                             decaying_rate=0.95,
@@ -19,10 +19,10 @@ if __name__ == "__main__":
                             model_type=ThreeLayersModel,
                             optimizer=tf.keras.optimizers.Adam,
                             criterion=tf.keras.losses.MSE,
-                            net_learning_rate=0.01,
+                            net_learning_rate=0.002,
                             model_name="FiveLayersModel")
     rewards, averaged_steps, averaged_rewards, losses = dqn.train_agent(num_of_episodes=350,
-                                                                weights_assign_num=5,
+                                                                weights_assign_num=4,
                                                                 training_num=1,
                                                                 batch_size=128,
                                                                 epochs=1)
