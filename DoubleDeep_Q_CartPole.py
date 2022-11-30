@@ -15,7 +15,7 @@ if __name__ == "__main__":
                             q_learning_rate=0.0001,
                             discount_factor=0.95,
                             decaying_rate=0.95,
-                            epsilon=0.25,
+                            epsilon=0.9,
                             model_type=ThreeLayersModel,
                             optimizer=tf.keras.optimizers.Adam,
                             criterion=tf.keras.losses.MSE,

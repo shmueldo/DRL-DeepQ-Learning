@@ -6,6 +6,7 @@ from Environments import *
 from QAlgorithms import *
 from datetime import datetime
 import tensorflow as tf
+import h5py
     
     
 if __name__ == "__main__": 
@@ -15,18 +16,21 @@ if __name__ == "__main__":
                             q_learning_rate=0.0001,
                             discount_factor=0.95,
                             decaying_rate=0.95,
-                            epsilon=0.25,
+                            epsilon=0.9,
                             model_type=ThreeLayersModel,
                             optimizer=tf.keras.optimizers.Adam,
                             criterion=tf.keras.losses.MSE,
-                            net_learning_rate=0.01,
+                            net_learning_rate=0.002,
                             model_name="FiveLayersModel")
-    rewards, averaged_steps, averaged_rewards, losses = dqn.train_agent(num_of_episodes=350,
+    
+    rewards, averaged_steps, averaged_rewards, losses = dqn.train_agent(num_of_episodes=3,
                                                                 weights_assign_num=5,
                                                                 training_num=1,
                                                                 batch_size=128,
                                                                 epochs=1)
-
+    dqn.main_model.load_weights(r"G:\Other computers\ה-מחשב נייד שלי\תואר שני\Reinforcement Learning\Assignments\Ass1\Model_weights\optimal_checkpoint\FiveLayersModel_weights")
+    dqn.test_agent(150)
+    
     with open(os.getcwd() + r"\lists\rewards_50weights_assign_num.npy", 'wb') as f:
         np.save(f, np.array(rewards))
 

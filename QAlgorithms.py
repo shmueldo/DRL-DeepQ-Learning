@@ -12,6 +12,7 @@ import os
 from ModifiedTensorBoard import *
 from datetime import datetime
 import keras.backend as K
+import time
 
 SEED = 42
 np.random.seed(SEED)
@@ -91,7 +92,7 @@ class DeepQLearning(QLearning):
         
         
         # define the experience reply deque
-        self.maximal_reply_size = 5000
+        self.maximal_reply_size = 10000
         self.minimal_reply_size = 150
         self.exp_reply_deque    = deque(maxlen=self.maximal_reply_size)
         
@@ -232,11 +233,10 @@ class DeepQLearning(QLearning):
             self.update_epsilon()
             
             
-            # decay lr every 10k steps
-            # if (episode % 50 == 0 and episode != 0):
-                # K.set_value(self.main_model.optimizer.lr, self.main_model.optimizer.lr * 0.1)
+            # decay lr every 50 episodes
+            if (episode % 50 == 0 and episode != 0):
+                K.set_value(self.main_model.optimizer.lr, self.main_model.optimizer.lr * 0.1)
 
-            
             while True:
                 #update tensor board step
                 self.tensorboard.step = overall_steps
@@ -320,10 +320,8 @@ class DeepQLearning(QLearning):
             # initialize episode parameters
             done = False
             step = 0
-            update_counter = 0
             overall_reward = 0
-            # plt.imshow(self.environment.env.render())
-            # plt.show()
+            plt.imshow(self.environment.env.render())
             while True:
                 # increment steps
                 step += 1
@@ -334,14 +332,15 @@ class DeepQLearning(QLearning):
             
                 # Apply environment step
                 next_state, reward, done = self.env_step(current_action)
-                # plt.imshow(self.environment.env.render())
-
+                if step % 5 == 0:
+                    plt.imshow(self.environment.env.render())
+                    plt.close()
                 # Move on to the next step 
                 current_state = next_state
                 overall_reward += reward
                
                 # Check if game terminated
-                if done:
+                if done or step > 500:
                     rewards.append(overall_reward)
                     # plt.imshow(self.environment.env.render())
                     steps_of_hundred_episodes.append(step)
@@ -455,9 +454,9 @@ class DoubleDeepQLearning(DeepQLearning):
             self.update_epsilon()
             
             
-            # decay lr 
-            K.set_value(self.main_model.optimizer.lr, self.main_model.optimizer.lr * 0.99)
-            print("lr = ", self.main_model.optimizer.lr)
+            # decay lr every 50 episodes
+            if (episode % 50 == 0 and episode != 0):
+                K.set_value(self.main_model.optimizer.lr, self.main_model.optimizer.lr * 0.1)
             
             while True:
                 #update tensor board step
